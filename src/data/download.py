@@ -4,7 +4,7 @@ import zipfile
 from dotenv import load_dotenv
 
 # Define the absolute path for the data directory
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 DATA_DIR = os.path.join(BASE_DIR, "data/raw")
 
 
