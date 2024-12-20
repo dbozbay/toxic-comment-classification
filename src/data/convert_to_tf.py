@@ -4,18 +4,20 @@ from typing import Tuple
 import pandas as pd
 import tensorflow as tf
 
-from ..config import INPUT, INTERIM_DATA_DIR, LABELS, PROCESSED_DATA_DIR
+from ..config import INPUT, INTERIM_DATA_DIR, LABELS
+from .preprocess import load_preprocessed_data
 
 
 def main():
-    train_df, val_df, test_df = load_preprocessed_dataframes(PROCESSED_DATA_DIR)
+    train_df, val_df, test_df = load_preprocessed_data()
+
     train_ds = df_to_tf_dataset(train_df)
     val_ds = df_to_tf_dataset(val_df)
     test_ds = df_to_tf_dataset(test_df)
 
-    print("Training samples:", len(train_ds))
-    print("Validation samples:", len(val_ds))
-    print("Test samples:", len(test_ds))
+    print("Training: ", len(train_ds))
+    print("Validation: ", len(val_ds))
+    print("Test: ", len(test_ds))
 
     save_tf_datasets(train_ds, val_ds, test_ds)
 
@@ -50,20 +52,17 @@ def save_tf_datasets(
     test_ds.save(os.path.join(output_dir, "test_ds"), compression="GZIP")
 
 
-def load_preprocessed_dataframes(
-    input_dir: str = PROCESSED_DATA_DIR,
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """Loads preprocessed DataFrames from compressed CSV files."""
-    train_df = pd.read_csv(
-        os.path.join(input_dir, "train.csv.gz"), index_col=0, compression="gzip"
+def load_tf_datasets(
+    input_dir: str = INTERIM_DATA_DIR,
+) -> Tuple[tf.data.Dataset, tf.data.Dataset, tf.data.Dataset]:
+    train_ds = tf.data.Dataset.load(
+        os.path.join(input_dir, "train_ds"), compression="GZIP"
     )
-    val_df = pd.read_csv(
-        os.path.join(input_dir, "val.csv.gz"), index_col=0, compression="gzip"
+    val_ds = tf.data.Dataset.load(os.path.join(input_dir, "val_ds"), compression="GZIP")
+    test_ds = tf.data.Dataset.load(
+        os.path.join(input_dir, "test_ds"), compression="GZIP"
     )
-    test_df = pd.read_csv(
-        os.path.join(input_dir, "test.csv.gz"), index_col=0, compression="gzip"
-    )
-    return train_df, val_df, test_df
+    return train_ds, val_ds, test_ds
 
 
 if __name__ == "__main__":

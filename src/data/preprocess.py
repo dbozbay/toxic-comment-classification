@@ -3,13 +3,12 @@ from typing import Tuple
 
 import pandas as pd
 
-from ..confi import INPUT, LABELS
-from ..config import PROCESSED_DATA_DIR, RAW_DATA_DIR
-from .download import download_competition_dataset
+from ..config import INPUT, LABELS, PROCESSED_DATA_DIR
+from .download import load_raw_data
 
 
 def main():
-    raw_train, raw_test, raw_test_labels = load_raw_dataframes()
+    raw_train, raw_test, raw_test_labels = load_raw_data()
     train_df, val_df, test_df = preprocess_data(
         raw_train, raw_test, raw_test_labels, inputs=INPUT, labels=LABELS
     )
@@ -40,28 +39,6 @@ def preprocess_data(
     train_df, val_df = split_train_validation(train_df)
 
     return train_df, val_df, test_df
-
-
-def check_raw_data_exists(download_path: RAW_DATA_DIR) -> bool:
-    """Checks if the raw datasets exist in zipped format."""
-    files_to_check = ["train.csv.zip", "test.csv.zip", "test_labels.csv.zip"]
-    return all(
-        os.path.exists(os.path.join(download_path, file_name))
-        for file_name in files_to_check
-    )
-
-
-def load_raw_dataframes(
-    download_path: str = RAW_DATA_DIR,
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    if not check_raw_data_exists(download_path):
-        download_competition_dataset(download_path)
-
-    raw_train_df = pd.read_csv(os.path.join(download_path, "train.csv.zip"))
-    raw_test_df = pd.read_csv(os.path.join(download_path, "test.csv.zip"))
-    raw_test_labels_df = pd.read_csv(os.path.join(download_path, "test_labels.csv.zip"))
-
-    return raw_train_df, raw_test_df, raw_test_labels_df
 
 
 def set_id_as_index(df: pd.DataFrame) -> pd.DataFrame:
@@ -109,6 +86,22 @@ def save_preprocessed_data(
     test_df.to_csv(
         os.path.join(output_dir, "test.csv.gz"), index=True, compression="gzip"
     )
+
+
+def load_preprocessed_data(
+    input_dir: str = PROCESSED_DATA_DIR,
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Loads preprocessed DataFrames from compressed CSV files."""
+    train_df = pd.read_csv(
+        os.path.join(input_dir, "train.csv.gz"), index_col=0, compression="gzip"
+    )
+    val_df = pd.read_csv(
+        os.path.join(input_dir, "val.csv.gz"), index_col=0, compression="gzip"
+    )
+    test_df = pd.read_csv(
+        os.path.join(input_dir, "test.csv.gz"), index_col=0, compression="gzip"
+    )
+    return train_df, val_df, test_df
 
 
 if __name__ == "__main__":
