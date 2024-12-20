@@ -3,14 +3,15 @@ import zipfile
 
 from dotenv import load_dotenv
 
-# Define the absolute path for the data directory
+COMPETITION = "jigsaw-toxic-comment-classification-challenge"
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-DATA_DIR = os.path.join(BASE_DIR, "data/raw")
+COMPETITION_DIR = os.path.join(BASE_DIR, "data", COMPETITION)
+RAW_DATA_DIR = os.path.join(COMPETITION_DIR, "raw")
 
 
 def download_competition_dataset(
     competition: str,
-    download_path: str = DATA_DIR,
+    download_path: str,
     unzip: bool = True,
 ) -> None:
     # Load environment variables from .env
@@ -37,31 +38,30 @@ def download_competition_dataset(
 
     print("Kaggle API authenticated.")
 
-    # Ensure the competition-specific subdirectory exists
-    competition_dir = os.path.join(download_path, competition)
-    if not os.path.exists(competition_dir):
-        os.makedirs(competition_dir)
+    # Ensure the download directory exists
+    if not os.path.exists(download_path):
+        os.makedirs(download_path)
 
     print(
-        f"Downloading datasets from the '{competition}' competition to '{competition_dir}'..."
+        f"Downloading datasets from the '{competition}' competition to '{download_path}'..."
     )
 
     api.competition_download_files(
-        competition=competition, path=competition_dir, quiet=False
+        competition=competition, path=download_path, quiet=False
     )
 
     print(
-        f"Datasets from '{competition}' downloaded successfully to '{competition_dir}'."
+        f"Datasets from '{competition}' downloaded successfully to '{download_path}'."
     )
 
     # Unzip downloaded files if `unzip` is True
     if unzip:
         print("Unzipping downloaded files...")
-        for file_name in os.listdir(competition_dir):
+        for file_name in os.listdir(download_path):
             if file_name.endswith(".zip"):
-                file_path = os.path.join(competition_dir, file_name)
+                file_path = os.path.join(download_path, file_name)
                 with zipfile.ZipFile(file_path, "r") as zip_ref:
-                    zip_ref.extractall(competition_dir)
+                    zip_ref.extractall(download_path)
                 print(f"Extracted: {file_name}")
                 # Optionally, remove the zip file after extraction
                 os.remove(file_path)
@@ -69,10 +69,7 @@ def download_competition_dataset(
 
 
 if __name__ == "__main__":
-    competition_identifier = input(
-        "Enter the Kaggle competition identifier (e.g., 'titanic'): "
-    )
     try:
-        download_competition_dataset(competition_identifier)
+        download_competition_dataset(COMPETITION, RAW_DATA_DIR)
     except Exception as e:
         print(f"An error occurred: {e}")
