@@ -3,16 +3,17 @@ from typing import Tuple
 
 import pandas as pd
 
-from src.data.download import download_competition_dataset
+from ..confi import INPUT, LABELS
+from ..config import PROCESSED_DATA_DIR, RAW_DATA_DIR
+from .download import download_competition_dataset
 
-COMPETITION = "jigsaw-toxic-comment-classification-challenge"
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-COMPETITION_DIR = os.path.join(BASE_DIR, "data", COMPETITION)
-RAW_DATA_DIR = os.path.join(COMPETITION_DIR, "raw")
-PROCESSED_DATA_DIR = os.path.join(COMPETITION_DIR, "processed")
 
-INPUT = ["comment_text"]
-LABELS = ["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]
+def main():
+    raw_train, raw_test, raw_test_labels = load_raw_dataframes()
+    train_df, val_df, test_df = preprocess_data(
+        raw_train, raw_test, raw_test_labels, inputs=INPUT, labels=LABELS
+    )
+    save_preprocessed_data(train_df, val_df, test_df)
 
 
 def preprocess_data(
@@ -42,6 +43,7 @@ def preprocess_data(
 
 
 def check_raw_data_exists(download_path: RAW_DATA_DIR) -> bool:
+    """Checks if the raw datasets exist in zipped format."""
     files_to_check = ["train.csv.zip", "test.csv.zip", "test_labels.csv.zip"]
     return all(
         os.path.exists(os.path.join(download_path, file_name))
@@ -90,12 +92,24 @@ def split_train_validation(
     return train_df, val_df
 
 
-if __name__ == "__main__":
-    raw_train, raw_test, raw_test_labels = load_raw_dataframes()
-    train_df, val_df, test_df = preprocess_data(
-        raw_train, raw_test, raw_test_labels, inputs=INPUT, labels=LABELS
+def save_preprocessed_data(
+    train_df: pd.DataFrame,
+    val_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    output_dir: str = PROCESSED_DATA_DIR,
+) -> None:
+    """Saves preprocessed DataFrames as compressed CSV files."""
+    os.makedirs(output_dir, exist_ok=True)
+    train_df.to_csv(
+        os.path.join(output_dir, "train.csv.gz"), index=True, compression="gzip"
     )
-    print(f"Training samples: {len(train_df)}")
-    print(f"Validation samples: {len(val_df)}")
-    print(f"Test samples: {len(test_df)}")
-    print(test_df.head())
+    val_df.to_csv(
+        os.path.join(output_dir, "val.csv.gz"), index=True, compression="gzip"
+    )
+    test_df.to_csv(
+        os.path.join(output_dir, "test.csv.gz"), index=True, compression="gzip"
+    )
+
+
+if __name__ == "__main__":
+    main()

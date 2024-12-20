@@ -3,15 +3,12 @@ import zipfile
 
 from dotenv import load_dotenv
 
-COMPETITION = "jigsaw-toxic-comment-classification-challenge"
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-COMPETITION_DIR = os.path.join(BASE_DIR, "data", COMPETITION)
-RAW_DATA_DIR = os.path.join(COMPETITION_DIR, "raw")
+from src.config import COMPETITION, RAW_DATA_DIR
 
 
 def download_competition_dataset(
-    competition: str,
-    download_path: str,
+    competition: str = COMPETITION,
+    download_path: str = RAW_DATA_DIR,
     unzip: bool = True,
 ) -> None:
     # Load environment variables from .env
@@ -42,10 +39,6 @@ def download_competition_dataset(
     if not os.path.exists(download_path):
         os.makedirs(download_path)
 
-    print(
-        f"Downloading datasets from the '{competition}' competition to '{download_path}'..."
-    )
-
     api.competition_download_files(
         competition=competition, path=download_path, quiet=False
     )
@@ -54,7 +47,6 @@ def download_competition_dataset(
         f"Datasets from '{competition}' downloaded successfully to '{download_path}'."
     )
 
-    # Unzip downloaded files if `unzip` is True
     if unzip:
         print("Unzipping downloaded files...")
         for file_name in os.listdir(download_path):
@@ -70,6 +62,6 @@ def download_competition_dataset(
 
 if __name__ == "__main__":
     try:
-        download_competition_dataset(COMPETITION, RAW_DATA_DIR)
+        download_competition_dataset()
     except Exception as e:
         print(f"An error occurred: {e}")
