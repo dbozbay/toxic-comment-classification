@@ -7,10 +7,10 @@ from ..config import INPUT, LABELS, PROCESSED_DATA_DIR
 from .download import load_raw_data
 
 
-def main():
-    raw_train, raw_test, raw_test_labels = load_raw_data()
+def main() -> None:
+    raw_train_df, raw_test_df, raw_test_labels_df = load_raw_data()
     train_df, val_df, test_df = preprocess_data(
-        raw_train, raw_test, raw_test_labels, inputs=INPUT, labels=LABELS
+        raw_train_df, raw_test_df, raw_test_labels_df, inputs=INPUT, labels=LABELS
     )
     save_preprocessed_data(train_df, val_df, test_df)
 
@@ -42,19 +42,19 @@ def preprocess_data(
 
 
 def set_id_as_index(df: pd.DataFrame) -> pd.DataFrame:
-    """Sets the `id` column as the index of the DataFrame."""
-    if "id" not in df.columns:
-        raise KeyError("The DataFrame doe not contain an 'id'column.")
+    assert "id" in df.columns, "The DataFrame must contain an 'id' column."
     return df.set_index("id", drop=True)
 
 
 def merge_on_index(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
-    """Merges two DataFrames using their indexes."""
+    merged_df = pd.merge(df1, df2, left_index=True, right_index=True)
+    assert (
+        len(merged_df) == len(df1) == len(df2)
+    ), "Some rows were lost during the merge."
     return pd.merge(df1, df2, left_index=True, right_index=True)
 
 
 def remove_bad_test_samples(test_df: pd.DataFrame, labels: list) -> pd.DataFrame:
-    """Removes samples in the test set that were not used for scoring. These samples are indicated with -1 for all labels."""
     return test_df.loc[~(test_df[labels] == -1).all(axis=1)]
 
 
@@ -63,9 +63,9 @@ def split_train_validation(
     val_size: float = 0.2,
     random_state: int = 0,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """Splits the traininig DataFrame into train and validation (or test) sets."""
     val_df = df.sample(frac=val_size, random_state=random_state)
-    train_df = df.drop(val_df.index)
+    train_df = df.drop(index=list(val_df.index))
+    assert len(train_df) + len(val_df) == len(df)
     return train_df, val_df
 
 
@@ -75,7 +75,6 @@ def save_preprocessed_data(
     test_df: pd.DataFrame,
     output_dir: str = PROCESSED_DATA_DIR,
 ) -> None:
-    """Saves preprocessed DataFrames as compressed CSV files."""
     os.makedirs(output_dir, exist_ok=True)
     train_df.to_csv(
         os.path.join(output_dir, "train.csv.gz"), index=True, compression="gzip"
@@ -86,6 +85,7 @@ def save_preprocessed_data(
     test_df.to_csv(
         os.path.join(output_dir, "test.csv.gz"), index=True, compression="gzip"
     )
+    print(f"Processed data saved to {PROCESSED_DATA_DIR}.")
 
 
 def load_preprocessed_data(

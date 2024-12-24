@@ -8,35 +8,35 @@ from dotenv import load_dotenv
 from src.config import COMPETITION, RAW_DATA_DIR
 
 
+def authenticate_kaggle_api(api):
+    print("Authenticating Kaggle API...")
+    load_dotenv()
+    kaggle_username = os.getenv("KAGGLE_USERNAME")
+    kaggle_key = os.getenv("KAGGLE_KEY")
+    if not kaggle_username or not kaggle_key:
+        raise ValueError("KAGGLE_USERNAME or KAGGLE_KEY is missing from the .env file.")
+    os.environ["KAGGLE_USERNAME"] = kaggle_username
+    os.environ["KAGGLE_KEY"] = kaggle_key
+    try:
+        api.authenticate()
+    except Exception as e:
+        print(f"An error occurred: {e}")
+    print("Kaggle API authenticated.")
+
+
 def download_competition_data(
     competition: str = COMPETITION,
     download_path: str = RAW_DATA_DIR,
     unzip: bool = True,
 ) -> None:
-    # Load environment variables from .env
-    load_dotenv()
-
+    # TODO: Fix the Kaggle API authentication
     # FIX: For some reason Kaggle's `__init__.py` script is immediately executed when imported,
     # which attempts to read environment variables before the .env is loaded.
     # This import statement can be moved to the top of the script once this is fixed.
     from kaggle import KaggleApi
 
-    kaggle_username = os.getenv("KAGGLE_USERNAME")
-    kaggle_key = os.getenv("KAGGLE_KEY")
-
-    if not kaggle_username or not kaggle_key:
-        raise ValueError("KAGGLE_USERNAME or KAGGLE_KEY is missing from the .env file.")
-
-    # Ensure environment variables are available to KaggleApi
-    os.environ["KAGGLE_USERNAME"] = kaggle_username
-    os.environ["KAGGLE_KEY"] = kaggle_key
-
-    # Initialize and authenticate Kaggle API
     api = KaggleApi()
-    api.authenticate()
-
-    print("Kaggle API authenticated.")
-
+    authenticate_kaggle_api(api=api)
     # Ensure the download directory exists
     if not os.path.exists(download_path):
         os.makedirs(download_path)
@@ -51,18 +51,22 @@ def download_competition_data(
 
     if unzip:
         print("Unzipping downloaded files...")
-        for file_name in os.listdir(download_path):
-            if file_name.endswith(".zip"):
-                file_path = os.path.join(download_path, file_name)
-                with zipfile.ZipFile(file_path, "r") as zip_ref:
-                    zip_ref.extractall(download_path)
-                print(f"Extracted: {file_name}")
-                # Optionally, remove the zip file after extraction
-                os.remove(file_path)
+        _unzip_files_in_dir(download_path)
         print("Unzipping completed.")
 
 
-def _check_raw_data_exists(download_path: RAW_DATA_DIR) -> bool:
+def _unzip_files_in_dir(directory: str) -> None:
+    for file_name in os.listdir(directory):
+        if file_name.endswith(".zip"):
+            file_path = os.path.join(directory, file_name)
+            with zipfile.ZipFile(file_path, "r") as zip_ref:
+                zip_ref.extractall(directory)
+            print(f"Extracted: {file_name}")
+            # Optionally, remove the zip file after extraction
+            os.remove(file_path)
+
+
+def _check_raw_data_exists(download_path: str = RAW_DATA_DIR) -> bool:
     """Checks if the raw datasets exist in zipped format."""
     files_to_check = ["train.csv.zip", "test.csv.zip", "test_labels.csv.zip"]
     return all(
@@ -85,6 +89,7 @@ def load_raw_data(
 
 
 if __name__ == "__main__":
+    # TODO: Fix the Kaggle API authentication
     try:
         download_competition_data()
     except Exception as e:
