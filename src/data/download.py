@@ -5,92 +5,83 @@ from typing import Tuple
 import pandas as pd
 from dotenv import load_dotenv
 
+# FIX: Environment variables must be loaded before importing Kaggle API.
+load_dotenv()
+
+from kaggle import KaggleApi
+
 from src.config import COMPETITION, RAW_DATA_DIR
 
 
-def authenticate_kaggle_api(api):
+def setup_kaggle_api() -> KaggleApi:
+    """
+    Sets up and authenticates the Kaggle API client using environment variables.
+    Raises an error if authentication fails.
+    """
     print("Authenticating Kaggle API...")
-    load_dotenv()
-    kaggle_username = os.getenv("KAGGLE_USERNAME")
-    kaggle_key = os.getenv("KAGGLE_KEY")
-    if not kaggle_username or not kaggle_key:
-        raise ValueError("KAGGLE_USERNAME or KAGGLE_KEY is missing from the .env file.")
-    os.environ["KAGGLE_USERNAME"] = kaggle_username
-    os.environ["KAGGLE_KEY"] = kaggle_key
+    api = KaggleApi()
     try:
         api.authenticate()
     except Exception as e:
-        print(f"An error occurred: {e}")
+        raise ValueError(
+            "Failed to authenticate Kaggle API. Ensure KAGGLE_USERNAME and KAGGLE_KEY are set."
+        ) from e
     print("Kaggle API authenticated.")
+    return api
 
 
-def download_competition_data(
+def download_data(
     competition: str = COMPETITION,
     download_path: str = RAW_DATA_DIR,
     unzip: bool = True,
 ) -> None:
-    # TODO: Fix the Kaggle API authentication
-    # FIX: For some reason Kaggle's `__init__.py` script is immediately executed when imported,
-    # which attempts to read environment variables before the .env is loaded.
-    # This import statement can be moved to the top of the script once this is fixed.
-    from kaggle import KaggleApi
-
-    api = KaggleApi()
-    authenticate_kaggle_api(api=api)
-    # Ensure the download directory exists
-    if not os.path.exists(download_path):
-        os.makedirs(download_path)
-
-    api.competition_download_files(
-        competition=competition, path=download_path, quiet=False
-    )
-
-    print(
-        f"Datasets from '{competition}' downloaded successfully to '{download_path}'."
-    )
+    """
+    Downloads competition data from Kaggle and optionally unzips the files.
+    """
+    api = setup_kaggle_api()
+    os.makedirs(download_path, exist_ok=True)  # Ensure directory exists
+    api.competition_download_files(competition, path=download_path, quiet=False)
 
     if unzip:
         print("Unzipping downloaded files...")
-        _unzip_files_in_dir(download_path)
+        _unzip_files(download_path)
         print("Unzipping completed.")
 
 
-def _unzip_files_in_dir(directory: str) -> None:
+def _unzip_files(directory: str) -> None:
+    """
+    Extracts all .zip files in a given directory and removes the zip files after extraction.
+    """
     for file_name in os.listdir(directory):
         if file_name.endswith(".zip"):
             file_path = os.path.join(directory, file_name)
             with zipfile.ZipFile(file_path, "r") as zip_ref:
                 zip_ref.extractall(directory)
-            print(f"Extracted: {file_name}")
-            # Optionally, remove the zip file after extraction
-            os.remove(file_path)
-
-
-def _check_raw_data_exists(download_path: str = RAW_DATA_DIR) -> bool:
-    """Checks if the raw datasets exist in zipped format."""
-    files_to_check = ["train.csv.zip", "test.csv.zip", "test_labels.csv.zip"]
-    return all(
-        os.path.exists(os.path.join(download_path, file_name))
-        for file_name in files_to_check
-    )
+            os.remove(file_path)  # Clean up the zip file
+            print(f"Extracted and removed: {file_name}")
 
 
 def load_raw_data(
     download_path: str = RAW_DATA_DIR,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    if not _check_raw_data_exists(download_path):
-        download_competition_data(download_path)
+    """
+    Loads raw train, test, and test label datasets as Pandas DataFrames.
+    Downloads the datasets if not found in the specified path.
+    """
+    required_files = ["train.csv.zip", "test.csv.zip", "test_labels.csv.zip"]
+    if not all(
+        os.path.exists(os.path.join(download_path, file)) for file in required_files
+    ):
+        print("Required files not found. Initiating download...")
+        download_data(download_path=download_path)
 
-    raw_train_df = pd.read_csv(os.path.join(download_path, "train.csv.zip"))
-    raw_test_df = pd.read_csv(os.path.join(download_path, "test.csv.zip"))
-    raw_test_labels_df = pd.read_csv(os.path.join(download_path, "test_labels.csv.zip"))
-
-    return raw_train_df, raw_test_df, raw_test_labels_df
+    print("Loading datasets...")
+    train_df = pd.read_csv(os.path.join(download_path, "train.csv.zip"))
+    test_df = pd.read_csv(os.path.join(download_path, "test.csv.zip"))
+    test_labels_df = pd.read_csv(os.path.join(download_path, "test_labels.csv.zip"))
+    print("Datasets loaded successfully.")
+    return train_df, test_df, test_labels_df
 
 
 if __name__ == "__main__":
-    # TODO: Fix the Kaggle API authentication
-    try:
-        download_competition_data()
-    except Exception as e:
-        print(f"An error occurred: {e}")
+    raw_train_df, raw_test_df, raw_test_labels_df = load_raw_data()

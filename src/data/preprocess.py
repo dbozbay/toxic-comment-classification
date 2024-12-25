@@ -12,7 +12,7 @@ def main() -> None:
     train_df, val_df, test_df = preprocess_data(
         raw_train_df, raw_test_df, raw_test_labels_df, inputs=INPUT, labels=LABELS
     )
-    save_preprocessed_data(train_df, val_df, test_df)
+    _save_preprocessed_data(train_df, val_df, test_df)
 
 
 def preprocess_data(
@@ -25,28 +25,28 @@ def preprocess_data(
     random_state: int = 0,
 ):
     # Set `id` as the indices
-    train_df = set_id_as_index(raw_train_df)
-    test_df = set_id_as_index(raw_test_df)
-    test_labels_df = set_id_as_index(raw_test_labels_df)
+    train_df = _set_id_as_index(raw_train_df)
+    test_df = _set_id_as_index(raw_test_df)
+    test_labels_df = _set_id_as_index(raw_test_labels_df)
 
     # Merge test data with labels
-    test_df = merge_on_index(test_df, test_labels_df)
+    test_df = _merge_on_index(test_df, test_labels_df)
 
     # Remove bad samples
-    test_df = remove_bad_test_samples(test_df, labels)
+    test_df = _remove_bad_test_samples(test_df, labels)
 
     # Split train into training and validation sets
-    train_df, val_df = split_train_validation(train_df)
+    train_df, val_df = _split_train_validation(train_df)
 
     return train_df, val_df, test_df
 
 
-def set_id_as_index(df: pd.DataFrame) -> pd.DataFrame:
+def _set_id_as_index(df: pd.DataFrame) -> pd.DataFrame:
     assert "id" in df.columns, "The DataFrame must contain an 'id' column."
     return df.set_index("id", drop=True)
 
 
-def merge_on_index(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
+def _merge_on_index(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
     merged_df = pd.merge(df1, df2, left_index=True, right_index=True)
     assert (
         len(merged_df) == len(df1) == len(df2)
@@ -54,11 +54,11 @@ def merge_on_index(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
     return pd.merge(df1, df2, left_index=True, right_index=True)
 
 
-def remove_bad_test_samples(test_df: pd.DataFrame, labels: list) -> pd.DataFrame:
+def _remove_bad_test_samples(test_df: pd.DataFrame, labels: list) -> pd.DataFrame:
     return test_df.loc[~(test_df[labels] == -1).all(axis=1)]
 
 
-def split_train_validation(
+def _split_train_validation(
     df: pd.DataFrame,
     val_size: float = 0.2,
     random_state: int = 0,
@@ -69,7 +69,7 @@ def split_train_validation(
     return train_df, val_df
 
 
-def save_preprocessed_data(
+def _save_preprocessed_data(
     train_df: pd.DataFrame,
     val_df: pd.DataFrame,
     test_df: pd.DataFrame,
