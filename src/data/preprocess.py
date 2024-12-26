@@ -24,6 +24,10 @@ def preprocess_data(
     test_size: float = 0.2,
     random_state: int = 0,
 ):
+    # Ensure inputs and labels are lists
+    assert isinstance(inputs, list), "The 'inputs' parameter must be a list."
+    assert isinstance(labels, list), "The 'labels' parameter must be a list."
+
     # Set `id` as the indices
     train_df = _set_id_as_index(raw_train_df)
     test_df = _set_id_as_index(raw_test_df)
@@ -36,7 +40,9 @@ def preprocess_data(
     test_df = _remove_bad_test_samples(test_df, labels)
 
     # Split train into training and validation sets
-    train_df, val_df = _split_train_validation(train_df)
+    train_df, val_df = _split_train_validation(
+        train_df, val_size=test_size, random_state=random_state
+    )
 
     return train_df, val_df, test_df
 
