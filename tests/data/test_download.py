@@ -1,90 +1,82 @@
+# tests/test_download.py
 import os
 from unittest.mock import patch
 
 import pandas as pd
 import pytest
 
-from src.data.download import COMPETITION, RAW_DATA_DIR, download_data, load_raw_data
+from src.data.download import download_data, load_raw_data
 
 
-def test_download_data_type_error():
+@pytest.fixture
+def mock_kaggle_download():
+    with patch("src.data.download.kagglehub.dataset_download") as mock_download:
+        mock_download.return_value = "/mock/temp_path"
+        yield mock_download
+
+def test_download_data_success(mock_kaggle_download, tmp_path):
+    # Setup
+    dataset = "mock/dataset"
+    download_path = tmp_path / "data"
+    os.makedirs("/mock/temp_path", exist_ok=True)
+
+    # Mock the presence of files in the temporary download path
+    with patch("os.listdir", return_value=["train.csv", "test.csv", "test_labels.csv", "sample_submission.csv"]):
+        with patch("os.path.isfile", return_value=True):
+            with patch("shutil.move") as mock_move:
+                with patch("shutil.rmtree") as mock_rmtree:
+                    # Execute
+                    download_data(dataset=dataset, download_path=str(download_path))
+
+                    # Assertions
+                    mock_kaggle_download.assert_called_once_with(dataset, force_download=True)
+                    assert download_path.exists()
+                    mock_move.assert_any_call(
+                        os.path.join("/mock/temp_path", "train.csv"),
+                        str(download_path / "train.csv"),
+                    )
+                    mock_move.assert_any_call(
+                        os.path.join("/mock/temp_path", "test.csv"),
+                        str(download_path / "test.csv"),
+                    )
+                    mock_move.assert_any_call(
+                        os.path.join("/mock/temp_path", "test_labels.csv"),
+                        str(download_path / "test_labels.csv"),
+                    )
+                    # sample_submission.csv should not be moved
+                    assert not mock_move.called_with(
+                        os.path.join("/mock/temp_path", "sample_submission.csv"), str(download_path / "sample_submission.csv")
+                    )
+                    mock_rmtree.assert_called_once_with("/mock/temp_path")
+
+def test_download_data_type_errors():
     with pytest.raises(TypeError):
-        download_data(competition=123)  # Invalid type for competition
+        download_data(dataset=123, download_path="valid/path")
+
     with pytest.raises(TypeError):
-        download_data(download_path=456)  # Invalid type for download_path
+        download_data(dataset="valid/dataset", download_path=456)
 
+def test_load_raw_data_success(mock_kaggle_download, tmp_path):
+    # Setup
+    download_path = tmp_path / "data"
+    download_path.mkdir(parents=True, exist_ok=True)
 
-def test_load_raw_data_type_error():
-    with pytest.raises(TypeError):
-        load_raw_data(download_path=789)  # Invalid type for download_path
+    # Create mock CSV files
+    train_csv = download_path / "train.csv"
+    test_csv = download_path / "test.csv"
+    test_labels_csv = download_path / "test_labels.csv"
+    for file in [train_csv, test_csv, test_labels_csv]:
+        file.touch()
+        pd.DataFrame({"col": [1, 2, 3]}).to_csv(file, index=False)
 
+    # Execute
+    train_df, test_df, test_labels_df = load_raw_data(download_path=str(download_path))
 
-@patch("src.data.download.kagglehub.dataset_download")
-@patch("src.data.download.shutil.move")
-@patch("src.data.download.shutil.rmtree")
-def test_download_data(mock_rmtree, mock_move, mock_dataset_download):
-    # Mock the dataset download to return a temporary path
-    temp_path = "/tmp/kaggle_dataset"
-    mock_dataset_download.return_value = temp_path
-
-    # Create a temporary directory and files to simulate the downloaded dataset
-    os.makedirs(temp_path, exist_ok=True)
-    with open(os.path.join(temp_path, "train.csv"), "w") as f:
-        f.write("dummy data")
-    with open(os.path.join(temp_path, "test.csv"), "w") as f:
-        f.write("dummy data")
-    with open(os.path.join(temp_path, "test_labels.csv"), "w") as f:
-        f.write("dummy data")
-
-    # Call the function
-    download_data(competition=COMPETITION, download_path=RAW_DATA_DIR)
-
-    # Check that the files were moved
-    mock_move.assert_any_call(os.path.join(temp_path, "train.csv"), RAW_DATA_DIR)
-    mock_move.assert_any_call(os.path.join(temp_path, "test.csv"), RAW_DATA_DIR)
-    mock_move.assert_any_call(os.path.join(temp_path, "test_labels.csv"), RAW_DATA_DIR)
-
-    # Check that the temporary directory was removed
-    mock_rmtree.assert_called_once_with(temp_path)
-
-
-@patch("src.data.download.download_data")
-@patch("pandas.read_csv")
-def test_load_raw_data(mock_read_csv, mock_download_data):
-    # Mock the read_csv function to return dummy dataframes
-    mock_read_csv.side_effect = [
-        pd.DataFrame({"col1": [1, 2], "col2": [3, 4]}),
-        pd.DataFrame({"col1": [5, 6], "col2": [7, 8]}),
-        pd.DataFrame({"col1": [9, 10], "col2": [11, 12]}),
-    ]
-
-    # Create a temporary directory and files to simulate the raw data files
-    os.makedirs(RAW_DATA_DIR, exist_ok=True)
-    with open(os.path.join(RAW_DATA_DIR, "train.csv"), "w") as f:
-        f.write("dummy data")
-    with open(os.path.join(RAW_DATA_DIR, "test.csv"), "w") as f:
-        f.write("dummy data")
-    with open(os.path.join(RAW_DATA_DIR, "test_labels.csv"), "w") as f:
-        f.write("dummy data")
-
-    # Call the function
-    train_df, test_df, test_labels_df = load_raw_data(download_path=RAW_DATA_DIR)
-
-    # Check that the dataframes were loaded correctly
+    # Assertions
+    assert not mock_kaggle_download.called
+    assert isinstance(train_df, pd.DataFrame)
+    assert isinstance(test_df, pd.DataFrame)
+    assert isinstance(test_labels_df, pd.DataFrame)
     assert not train_df.empty
     assert not test_df.empty
     assert not test_labels_df.empty
-
-    # Check that the read_csv function was called with the correct file paths
-    mock_read_csv.assert_any_call(os.path.join(RAW_DATA_DIR, "train.csv"))
-    mock_read_csv.assert_any_call(os.path.join(RAW_DATA_DIR, "test.csv"))
-    mock_read_csv.assert_any_call(os.path.join(RAW_DATA_DIR, "test_labels.csv"))
-
-    # Clean up the temporary files
-    os.remove(os.path.join(RAW_DATA_DIR, "train.csv"))
-    os.remove(os.path.join(RAW_DATA_DIR, "test.csv"))
-    os.remove(os.path.join(RAW_DATA_DIR, "test_labels.csv"))
-
-
-if __name__ == "__main__":
-    pytest.main()

@@ -2,17 +2,30 @@ import os
 
 import pandas as pd
 import pytest
-from pandas.testing import assert_frame_equal
 
-from src.data.preprocess import (
-    _merge_on_index,
-    _remove_bad_test_samples,
-    _save_preprocessed_data,
-    _set_id_as_index,
-    _split_train_validation,
-    load_preprocessed_data,
-    preprocess_data,
-)
+
+@pytest.fixture
+def sample_raw_data():
+    """Creates sample raw dataframes for testing"""
+    train_df = pd.DataFrame({
+        'id': [1, 2, 3, 4, 5],
+        'comment_text': ['text1', 'text2', 'text3', 'text4', 'text5'],
+        'toxic': [0, 1, 0, 1, 0],
+        'severe_toxic': [0, 0, 1]
+    })
+
+    test_df = pd.DataFrame({
+        'id': [6, 7, 6],
+        'comment_text': ['text4', 'text5', 'text6']
+    })
+
+    test_labels_df = pd.DataFrame({
+        'id': [4, 5, 6],
+        'toxic': [1, 0, 0],
+        'severe_toxic': [0, 0, 1]
+    })
+
+    return train_df, test_df, test_labels_df
 
 # Sample data for testing
 mock_train_df = pd.DataFrame(
