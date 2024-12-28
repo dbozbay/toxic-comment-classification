@@ -1,82 +1,155 @@
-# tests/test_download.py
 import os
+import tempfile
 from unittest.mock import patch
 
 import pandas as pd
 import pytest
 
-from src.data.download import download_data, load_raw_data
+from src.data.download import download_data, main
 
+mock_train_data = pd.DataFrame(
+    {
+        "id": [1, 2, 3, 4, 5],
+        "comment_text": [
+            "This is a comment",
+            "This is another comment",
+            "Yet another comment",
+            "More comments here",
+            "Final comment",
+        ],
+        "toxic": [0, 1, 0, 1, 0],
+        "severe_toxic": [0, 0, 0, 0, 0],
+        "obscene": [0, 1, 0, 1, 0],
+        "threat": [0, 0, 0, 0, 0],
+        "insult": [0, 1, 0, 1, 0],
+        "identity_hate": [0, 0, 0, 0, 0],
+    }
+)
+
+mock_test_data = pd.DataFrame(
+    {
+        "id": [1, 2, 3, 4, 5],
+        "comment_text": [
+            "This is a test comment",
+            "This is another test comment",
+            "Yet another test comment",
+            "More test comments here",
+            "Final test comment",
+        ],
+    }
+)
+
+mock_test_labels_data = pd.DataFrame(
+    {
+        "id": [1, 2, 3, 4, 5],
+        "toxic": [-1, 0, -1, 0, -1],
+        "severe_toxic": [-1, 0, -1, 0, -1],
+        "obscene": [-1, 0, -1, 0, -1],
+        "threat": [-1, 0, -1, 0, -1],
+        "insult": [-1, 0, -1, 0, -1],
+        "identity_hate": [-1, 0, -1, 0, -1],
+    }
+)
 
 @pytest.fixture
-def mock_kaggle_download():
-    with patch("src.data.download.kagglehub.dataset_download") as mock_download:
-        mock_download.return_value = "/mock/temp_path"
+def mock_kagglehub():
+    with patch("kagglehub.load_dataset") as mock_load_dataset:
+        mock_load_dataset.side_effect = [
+            mock_train_data,
+            mock_test_data,
+            mock_test_labels_data,
+        ]
+        yield mock_load_dataset
+
+@pytest.fixture
+def mock_os_makedirs():
+    with patch("os.makedirs") as mock_makedirs:
+        yield mock_makedirs
+
+@pytest.fixture
+def mock_raw_data_exists():
+    with patch("src.data.download._raw_data_exists") as mock_exists:
+        yield mock_exists
+
+@pytest.fixture
+def mock_download_data():
+    with patch("src.data.download.download_data") as mock_download:
         yield mock_download
 
-def test_download_data_success(mock_kaggle_download, tmp_path):
-    # Setup
-    dataset = "mock/dataset"
-    download_path = tmp_path / "data"
-    os.makedirs("/mock/temp_path", exist_ok=True)
 
-    # Mock the presence of files in the temporary download path
-    with patch("os.listdir", return_value=["train.csv", "test.csv", "test_labels.csv", "sample_submission.csv"]):
-        with patch("os.path.isfile", return_value=True):
-            with patch("shutil.move") as mock_move:
-                with patch("shutil.rmtree") as mock_rmtree:
-                    # Execute
-                    download_data(dataset=dataset, download_path=str(download_path))
+def test_main_data_exists(mock_raw_data_exists, mock_download_data):
+    mock_raw_data_exists.return_value = True
+    main()
+    mock_download_data.assert_not_called()
 
-                    # Assertions
-                    mock_kaggle_download.assert_called_once_with(dataset, force_download=True)
-                    assert download_path.exists()
-                    mock_move.assert_any_call(
-                        os.path.join("/mock/temp_path", "train.csv"),
-                        str(download_path / "train.csv"),
-                    )
-                    mock_move.assert_any_call(
-                        os.path.join("/mock/temp_path", "test.csv"),
-                        str(download_path / "test.csv"),
-                    )
-                    mock_move.assert_any_call(
-                        os.path.join("/mock/temp_path", "test_labels.csv"),
-                        str(download_path / "test_labels.csv"),
-                    )
-                    # sample_submission.csv should not be moved
-                    assert not mock_move.called_with(
-                        os.path.join("/mock/temp_path", "sample_submission.csv"), str(download_path / "sample_submission.csv")
-                    )
-                    mock_rmtree.assert_called_once_with("/mock/temp_path")
+def test_main_data_not_exists(mock_raw_data_exists, mock_download_data):
+    mock_raw_data_exists.return_value = False
+    main()
+    mock_download_data.assert_called_once()
 
-def test_download_data_type_errors():
-    with pytest.raises(TypeError):
-        download_data(dataset=123, download_path="valid/path")
 
-    with pytest.raises(TypeError):
-        download_data(dataset="valid/dataset", download_path=456)
+def test_download_data_success(mock_kagglehub, mock_os_makedirs):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        download_data(download_path=temp_dir)
 
-def test_load_raw_data_success(mock_kaggle_download, tmp_path):
-    # Setup
-    download_path = tmp_path / "data"
-    download_path.mkdir(parents=True, exist_ok=True)
+        # Check that the directory was created
+        mock_os_makedirs.assert_called_once_with(temp_dir, exist_ok=True)
 
-    # Create mock CSV files
-    train_csv = download_path / "train.csv"
-    test_csv = download_path / "test.csv"
-    test_labels_csv = download_path / "test_labels.csv"
-    for file in [train_csv, test_csv, test_labels_csv]:
-        file.touch()
-        pd.DataFrame({"col": [1, 2, 3]}).to_csv(file, index=False)
+        # Check that the files were created
+        train_file = os.path.join(temp_dir, "train.csv")
+        test_file = os.path.join(temp_dir, "test.csv")
+        test_labels_file = os.path.join(temp_dir, "test_labels.csv")
 
-    # Execute
-    train_df, test_df, test_labels_df = load_raw_data(download_path=str(download_path))
+        assert os.path.exists(train_file), f"{train_file} does not exist"
+        assert os.path.exists(test_file), f"{test_file} does not exist"
+        assert os.path.exists(test_labels_file), f"{test_labels_file} does not exist"
 
-    # Assertions
-    assert not mock_kaggle_download.called
-    assert isinstance(train_df, pd.DataFrame)
-    assert isinstance(test_df, pd.DataFrame)
-    assert isinstance(test_labels_df, pd.DataFrame)
-    assert not train_df.empty
-    assert not test_df.empty
-    assert not test_labels_df.empty
+        # Check the contents of the files
+        train_df = pd.read_csv(train_file)
+        test_df = pd.read_csv(test_file)
+        test_labels_df = pd.read_csv(test_labels_file)
+
+        pd.testing.assert_frame_equal(train_df, mock_train_data)
+        pd.testing.assert_frame_equal(test_df, mock_test_data)
+        pd.testing.assert_frame_equal(test_labels_df, mock_test_labels_data)
+
+
+def test_download_data_invalid_train(mock_kagglehub):
+    invalid_train_data = pd.DataFrame({"id": [1, 2]})  # Missing required columns
+    mock_kagglehub.side_effect = [
+        invalid_train_data,
+        mock_test_data,
+        mock_test_labels_data,
+    ]
+    with pytest.raises(
+        ValueError,
+        match="The raw train data does not contain an 'comment_text' column.",
+    ):
+        download_data()
+
+
+def test_download_data_invalid_test(mock_kagglehub):
+    invalid_test_data = pd.DataFrame({"id": [1, 2]})  # Missing required columns
+    mock_kagglehub.side_effect = [
+        mock_train_data,
+        invalid_test_data,
+        mock_test_labels_data,
+    ]
+    with pytest.raises(
+        ValueError, match="The raw test data does not contain an 'comment_text' column."
+    ):
+        download_data()
+
+
+def test_download_data_invalid_test_labels(mock_kagglehub):
+    invalid_test_labels_data = pd.DataFrame({"id": [1, 2]})  # Missing required columns
+    mock_kagglehub.side_effect = [
+        mock_train_data,
+        mock_test_data,
+        invalid_test_labels_data,
+    ]
+    with pytest.raises(
+        ValueError,
+        match="The raw test labels data does not contain all the label columns.",
+    ):
+        download_data()
