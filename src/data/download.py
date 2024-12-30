@@ -9,27 +9,9 @@ from kagglehub.exceptions import KaggleApiHTTPError
 # from ..config import DATASET, RAW_DATA_PATH
 
 
-# def main():
-#     handle: str = DATASET
-#     download_path: str = RAW_DATA_PATH
-
-#     print(f"Downloading data from Kaggle dataset: {handle}...")
-#     raw_train_df, raw_test_df, raw_test_labels_df = load_data(handle=handle)
-
-#     os.makedirs(download_path, exist_ok=True)
-
-#     raw_train_df.to_csv(os.path.join(download_path, "train.csv"), index=False)
-#     raw_test_df.to_csv(os.path.join(download_path, "test.csv"), index=False)
-#     raw_test_labels_df.to_csv(
-#         os.path.join(download_path, "test_labels.csv"), index=False
-#     )
-
-#     print(f"Data downloaded to '{download_path}'.")
-
 
 def load_data(handle: str) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     return _load_train(handle), _load_test(handle), _load_test_labels(handle)
-
 
 def _load_train(handle: str) -> pd.DataFrame:
     try:
